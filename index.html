@@ -2753,4 +2753,93 @@ loadProjects().catch(e=>{console.error(e);toast('error','Portfolio database erro
 })();
 </script>
 
+
+<script>
+/* Final city variance visual: match Phase-Level Variance style */
+(function(){
+  function renderCityVarianceLikePhase(d){
+    const el=$('cityRanking');
+    if(!el)return;
+    const cities=[...(d.cities||[])].filter(c=>clean(c.name)).sort((a,b)=>(b.plan-b.actual)-(a.plan-a.actual));
+    if(!cities.length){
+      el.innerHTML='<div class="empty">No city or site performance data available.</div>';
+      return;
+    }
+    el.classList.remove('rank-bars');
+    el.innerHTML=cities.map((c,i)=>{
+      const gap=c.plan-c.actual;
+      const tone=gapTone(gap);
+      return `<div class="phase-row city-phase-row">
+        <div class="phase-top">
+          <span class="phase-name">${i+1}. ${esc(c.name)}</span>
+          <span>Plan ${pct(c.plan,2)} · Actual <strong>${pct(c.actual,2)}</strong> · Gap <strong>${pct(gap,2)}</strong></span>
+        </div>
+        <div class="dual">
+          <div class="plan" style="width:${clamp(c.plan)}%"></div>
+          <div class="actual ${tone}" style="width:${clamp(c.actual)}%"></div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  const previousRenderProjectCityStyle=renderProject;
+  renderProject=function(d){
+    previousRenderProjectCityStyle(d);
+    renderCityVarianceLikePhase(d);
+  };
+})();
+</script>
+
+
+<script>
+/* Exact city/phase visual parity + report-wide Variance terminology */
+(function(){
+  function replaceGapText(root=document){
+    const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+    const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);
+    nodes.forEach(n=>{
+      const p=n.parentElement;
+      if(!p||['SCRIPT','STYLE','TEXTAREA','INPUT','OPTION'].includes(p.tagName))return;
+      let t=n.nodeValue;
+      t=t.replace(/Plan-to-actual gap/gi,'Plan-to-actual variance')
+         .replace(/Schedule Gap/gi,'Variance View')
+         .replace(/Gap Points/gi,'Variance')
+         .replace(/Current gap/gi,'Current variance')
+         .replace(/POC Gap/gi,'POC Variance')
+         .replace(/\bGap\b/g,'Variance')
+         .replace(/\bgap\b/g,'variance');
+      if(t!==n.nodeValue)n.nodeValue=t;
+    });
+  }
+  function renderCityExact(d){
+    const el=$('cityRanking');if(!el)return;
+    const cities=[...(d.cities||[])].filter(c=>clean(c.name)&&nk(c.name)!=='overall').sort((a,b)=>(b.plan-b.actual)-(a.plan-a.actual));
+    const card=el.closest('.card');
+    if(card){
+      const title=card.querySelector('.card-title');if(title)title.textContent='City-Level Variance';
+      const sub=card.querySelector('.card-sub');if(sub)sub.textContent='Detailed planned versus actual performance by city.';
+      const badge=card.querySelector('.badge');if(badge){badge.textContent='Variance View';badge.className='badge red'}
+    }
+    if(!cities.length){el.innerHTML='<div class="empty">No city or site performance data available.</div>';return}
+    el.classList.remove('rank-bars');
+    el.innerHTML=cities.map(c=>{
+      const variance=c.plan-c.actual,tone=gapTone(variance);
+      return `<div class="phase-row city-phase-row">
+        <div class="phase-top">
+          <span class="phase-name">${esc(c.name)}</span>
+          <span>Planned ${pct(c.plan,2)} · Actual <strong>${pct(c.actual,2)}</strong> · Variance <strong>${pct(variance,2)}</strong></span>
+        </div>
+        <div class="dual">
+          <div class="plan" style="width:${clamp(c.plan)}%"></div>
+          <div class="actual ${tone}" style="width:${clamp(c.actual)}%"></div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  const prior=renderProject;
+  renderProject=function(d){prior(d);renderCityExact(d);replaceGapText(document)};
+  const observer=new MutationObserver(()=>replaceGapText(document));
+  observer.observe(document.body,{childList:true,subtree:true,characterData:true});
+  setTimeout(()=>{const d=typeof selectedProject==='function'?selectedProject():null;if(d&&selected!=='ALL')renderCityExact(d);replaceGapText(document)},400);
+})();
+</script>
 </body></html>
